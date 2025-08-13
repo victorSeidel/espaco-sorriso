@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { AlertTriangle, TrendingDown, Calendar } from "lucide-react";
+import { AlertTriangle, TrendingDown, Calendar, Gift } from "lucide-react";
 
 import { Agendamento, Paciente } from "@/database/schema";
 
@@ -15,7 +15,7 @@ import { findAllPacientesAction } from "@/actions/pacientes/actions";
 import { findAllAgendamentos } from "@/actions/agendamentos/actions";
 import { getMensagem } from "@/actions/configuracoes/actions";
 
-import { getMonth, getYear, addDays, differenceInDays, format } from 'date-fns';
+import { getMonth, getYear, addDays, differenceInDays, format, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale/pt-BR';
 
 const Reports = () => 
@@ -49,10 +49,10 @@ const Reports = () =>
     const maxMonth = yearIsCurrent ? currentMonth : 11;
 
     const monthlyStats = Array.from({ length: maxMonth + 1 }, (_, i) => ({
-      month: format(addDays(new Date(selected, i, 1), 1), 'MMM', { locale: ptBR }),
-      agendados: 0,
-      realizados: 0,
-      faltas: 0,
+        month: format(new Date(selected, i, 1), 'MMM', { locale: ptBR }),
+        agendados: 0,
+        realizados: 0,
+        faltas: 0,
     }));
 
     appointments.forEach(agendamento => 
@@ -105,9 +105,32 @@ const Reports = () =>
     .sort((a, b) => (b.diasSemConsulta ?? 0) - (a.diasSemConsulta ?? 0)); 
   }, [appointments, patients]);
 
+  const birthdayList = useMemo(() => 
+  {
+    const today = new Date();
+    return patients.filter(patient => {
+      if (!patient.dataNascimento) return false;
+      
+      const birthDate = new Date(patient.dataNascimento);
+      return (
+        birthDate.getDate() === today.getDate() && 
+        birthDate.getMonth() === today.getMonth()
+      );
+    });
+  }, [patients]);
+
+  const sendBirthdayMessage = async (patient: Paciente) => 
+  {
+    const messageRaw = (await getMensagem('msg_niver')).valor;
+    const message = messageRaw.replaceAll('{nome}', patient.nome);
+
+    const whatsappUrl = `https://wa.me/55${patient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
   const exportReport = (reportType: string) => 
   {
-
+    // Implementação existente
   };
 
   const sendRetentionMessage = async (patient: Paciente) => 
@@ -145,9 +168,10 @@ const Reports = () =>
       </div>
 
       <Tabs defaultValue="faltas" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="faltas">Faltas</TabsTrigger>
           <TabsTrigger value="inativos">Inativos</TabsTrigger>
+          <TabsTrigger value="aniversariantes">Aniversariantes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="faltas" className="space-y-4">
@@ -232,6 +256,49 @@ const Reports = () =>
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="aniversariantes" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Pacientes Aniversariantes</h3>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Gift className="w-5 h-5 text-green-600" />
+                Aniversariantes do Dia
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {birthdayList.length > 0 ? (
+                <div className="space-y-3">
+                  {birthdayList.map((patient, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                      <div>
+                        <p className="font-medium">{patient.nome}</p>
+                        <p className="text-sm text-gray-600">
+                          Data de Nascimento: {patient.dataNascimento ? format(new Date(patient.dataNascimento), "dd 'de' MMMM yyyy", { locale: ptBR }) : "Não informada"}
+                        </p>
+                        <p className="text-xs text-green-600">
+                          Aniversário hoje!
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => sendBirthdayMessage(patient)}>
+                          Parabenizar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  Nenhum paciente faz aniversário hoje
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

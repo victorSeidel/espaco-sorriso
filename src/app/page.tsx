@@ -87,7 +87,7 @@ const Index = () =>
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-blue-100">
+      <header className="bg-white shadow-sm border-b border-blue-100 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-3">
@@ -118,7 +118,7 @@ const Index = () =>
       {/* Navigation Tabs */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-7 print:hidden">
             {hasAccessToTab('dashboard') && (
               <TabsTrigger value="dashboard" className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4" />

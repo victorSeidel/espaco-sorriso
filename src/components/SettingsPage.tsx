@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
-import { Settings as SettingsIcon, MessageSquare, DollarSign, Plus, UserPlus, Stethoscope } from "lucide-react";
+import { Settings as SettingsIcon, MessageSquare, DollarSign, Plus, UserPlus, Stethoscope, MessageCircle, Target } from "lucide-react";
 
 import { Profissional, Auxiliar } from "@/database/schema";
 
@@ -27,25 +27,38 @@ import {
 } from "@/actions/auxiliares/actions";
 import WhatsAppStatus from "./WhatsAppStatus";
 
+interface Meta {
+  id?: number;
+  mes: number;
+  ano: number;
+  valorMeta: number;
+  pacientesMeta: number;
+}
+
 const SettingsPage = () => 
 {
-  const [whatsappToken, setWhatsappToken] = useState("");
-  const [whatsappNumero, setWhatsappNumero] = useState("");
-  const [asaasApiKey, setAsaasApiKey] = useState("");
+    const [whatsappToken, setWhatsappToken] = useState("");
+    const [whatsappNumero, setWhatsappNumero] = useState("");
+    const [asaasApiKey, setAsaasApiKey] = useState("");
 
-  const [professionals, setProfessionals] = useState<Profissional[]>([]);
-  const [isAddingProfessional, setIsAddingProfessional] = useState(false);
-  const [isEditingProfessional, setIsEditingProfessional] = useState(false);
-  const [currentProfessionalId, setCurrentProfessionalId] = useState<number | null>(null);
-  const [secretaries, setSecretaries] = useState<Auxiliar[]>([]);
-  const [isAddingSecretary, setIsAddingSecretary] = useState(false);
-  const [isEditingSecretary, setIsEditingSecretary] = useState(false);
-  const [currentSecretaryId, setCurrentSecretaryId] = useState<number | null>(null);
+    const [professionals, setProfessionals] = useState<Profissional[]>([]);
+    const [isAddingProfessional, setIsAddingProfessional] = useState(false);
+    const [isEditingProfessional, setIsEditingProfessional] = useState(false);
+    const [currentProfessionalId, setCurrentProfessionalId] = useState<number | null>(null);
+    const [secretaries, setSecretaries] = useState<Auxiliar[]>([]);
+    const [isAddingSecretary, setIsAddingSecretary] = useState(false);
+    const [isEditingSecretary, setIsEditingSecretary] = useState(false);
+    const [currentSecretaryId, setCurrentSecretaryId] = useState<number | null>(null);
 
-  const [msgAgendamento, setMsgAgendamento] = useState("");
-  const [msgBoleto, setMsgBoleto] = useState("");
-  const [msgInatividade, setMsgInatividade] = useState("");
-  const [msgPos, setMsgPos] = useState("");
+    const [msgAgendamento, setMsgAgendamento] = useState("");
+    const [msgBoleto, setMsgBoleto] = useState("");
+    const [msgInatividade, setMsgInatividade] = useState("");
+    const [msgPos, setMsgPos] = useState("");
+    const [msgNiver, setMsgNiver] = useState("");
+
+    const [metaValorTotal, setMetaValorTotal] = useState("");
+    const [metaPacientes, setMetaPacientes] = useState("");
+    const [metaConsultas, setMetaConsultas] = useState("");
 
   const [professionalData, setProfessionalData] = useState({ 
     nome: "", 
@@ -53,6 +66,7 @@ const SettingsPage = () =>
     registro: "", 
     telefone: "", 
     email: "", 
+    prelabore: 70,
     horarioTrabalho: "" 
   });
 
@@ -74,6 +88,11 @@ const SettingsPage = () =>
     setMsgBoleto((await getMensagem('msg_boleto')).valor);
     setMsgInatividade((await getMensagem('msg_inatividade')).valor);
     setMsgPos((await getMensagem('msg_pos')).valor);
+    setMsgNiver((await getMensagem('msg_niver')).valor);
+
+    setMetaValorTotal((await getMensagem('meta_valortotal')).valor);
+    setMetaPacientes((await getMensagem('meta_pacientes')).valor);
+    setMetaConsultas((await getMensagem('meta_consultas')).valor);
   }
 
   useEffect(() => { fetchData(); }, []);
@@ -108,6 +127,7 @@ const SettingsPage = () =>
       registro: professional.registro,
       telefone: professional.telefone,
       email: professional.email,
+      prelabore: professional.prelabore,
       horarioTrabalho: professional.horarioTrabalho || ''
     });
     
@@ -235,7 +255,8 @@ const SettingsPage = () =>
       especialidade: "", 
       registro: "", 
       telefone: "", 
-      email: "", 
+      email: "",
+      prelabore: 70,
       horarioTrabalho: "" 
     });
     setCurrentProfessionalId(null);
@@ -289,6 +310,7 @@ const SettingsPage = () =>
       if (msgBoleto)      await updateMensagem('msg_boleto', msgBoleto);
       if (msgInatividade) await updateMensagem('msg_inatividade', msgInatividade);
       if (msgPos)         await updateMensagem('msg_pos', msgPos);
+      if (msgNiver)       await updateMensagem('msg_niver', msgNiver);
 
       alert('Configurações salvas com sucesso!');
     } 
@@ -297,6 +319,23 @@ const SettingsPage = () =>
       alert('Falha ao salvar configurações. Tente novamente.');
     }
   };
+
+    const saveMetasConfig = async () => 
+    {
+        try 
+        {
+            if (metaValorTotal) await updateMensagem('meta_valortotal', metaValorTotal);
+            if (metaPacientes)  await updateMensagem('meta_pacientes', metaPacientes);
+            if (metaConsultas)  await updateMensagem('meta_pacientes', metaConsultas);
+
+            alert('Configurações salvas com sucesso!');
+        } 
+        catch (error) 
+        {
+            alert('Falha ao salvar configurações. Tente novamente.');
+        }
+    };
+
 
   return (
     <div className="space-y-6">
@@ -310,10 +349,11 @@ const SettingsPage = () =>
       </div>
 
       <Tabs defaultValue="integracao" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="integracao">Integrações</TabsTrigger>
           <TabsTrigger value="usuarios">Usuários</TabsTrigger>
           <TabsTrigger value="mensagens">Mensagens</TabsTrigger>
+          <TabsTrigger value="metas">Metas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="integracao" className="space-y-4">
@@ -452,7 +492,8 @@ const SettingsPage = () =>
                           />
                         </div>
                       </div>
-                      
+
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="prof-email">Email</Label>
                         <Input
@@ -462,7 +503,18 @@ const SettingsPage = () =>
                           onChange={(e) => setProfessionalData({...professionalData, email: e.target.value})}
                           placeholder="joao@clinica.com"
                         />
-                      </div>          
+                      </div>
+                      <div>
+                        <Label htmlFor="prof-prelabore">Pro-Labore (%)</Label>
+                        <Input
+                          id="prof-prelabore"
+                          type="number"
+                          value={professionalData.prelabore}
+                          onChange={(e) => setProfessionalData({...professionalData, prelabore: Number(e.target.value)})}
+                          placeholder="70"
+                        />
+                      </div>  
+                    </div>     
 
                       <div>
                         <Label htmlFor="prof-schedule">Horário de Trabalho</Label>
@@ -681,7 +733,10 @@ const SettingsPage = () =>
         <TabsContent value="mensagens" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Configurar Mensagens Automáticas</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                    <MessageCircle className="w-5 h-5 text-green-600" />
+                    Configurar Mensagens Automáticas
+                </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
@@ -726,9 +781,48 @@ const SettingsPage = () =>
                 />
               </div>
 
+              <div>
+                <h4 className="font-medium mb-2">Aniversário <span className="text-sm text-gray-700">{'{nome}'}</span> </h4>
+                <Textarea
+                  placeholder="Mensagem para enviar no aniversário do cliente..."
+                  rows={2}
+                  value={msgNiver}
+                  onChange={(e) => setMsgNiver(e.target.value)}
+                />
+              </div>
+
               <Button onClick={saveMsgConfig} className="w-full">Salvar Todas as Mensagens</Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="metas" className="space-y-4">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Target className="w-5 h-5 text-purple-600" />
+                        Metas Mensais
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                    <div>
+                        <h4 className="font-medium mb-2"> Receita Total </h4>
+                        <Input type="number" value={metaValorTotal} onChange={(e) => setMetaValorTotal(e.target.value)}/>
+                    </div>
+
+                    <div>
+                        <h4 className="font-medium mb-2">Número de Pacientes Novos </h4>
+                        <Input type="number" value={metaPacientes} onChange={(e) => setMetaPacientes(e.target.value)}/>
+                    </div>
+
+                    <div>
+                        <h4 className="font-medium mb-2">Número de Consultas </h4>
+                        <Input type="number" value={metaConsultas} onChange={(e) => setMetaConsultas(e.target.value)}/>
+                    </div>
+
+                    <Button onClick={saveMetasConfig} className="w-full">Salvar Metas</Button>
+                </CardContent>
+            </Card>
         </TabsContent>
       </Tabs>
     </div>

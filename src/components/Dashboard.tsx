@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, DollarSign, Users, Clock, AlertCircle } from "lucide-react";
+import { Calendar, DollarSign, Users, Clock, AlertCircle, Target } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 import { Agendamento, Paciente } from "@/database/schema";
@@ -9,6 +9,8 @@ import { Boleto } from "@/models/Boleto";
 
 import { findAllAgendamentos, findLimitedAgendamentos } from "@/actions/agendamentos/actions";
 import { findAllPacientesAction } from "@/actions/pacientes/actions";
+import { getMensagem } from "@/actions/configuracoes/actions";
+
 import { formatarDataComDateFns } from "@/lib/data";
 
 const Dashboard = () => 
@@ -20,28 +22,39 @@ const Dashboard = () =>
 
   const [boletos, setBoletos] = useState<Boleto[]>([]);
 
-  async function fetchData() 
-  {
-    const appointmentData = await findAllAgendamentos();
-    setAppointments(appointmentData);
+  const [metaValorTotal, setMetaValorTotal] = useState<number>(0);
+  const [metaPacientes, setMetaPacientes] = useState<number>(0);
+  const [metaConsultas, setMetaConsultas] = useState<number>(0);
 
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0]; 
-    const todayAppointmentsData = appointmentData.filter(appt => appt.data === todayStr).sort((a, b) => a.horario.localeCompare(b.horario));
-    setTodayAppointments(todayAppointmentsData);
+    async function fetchData() 
+    {
+        const appointmentData = await findAllAgendamentos();
+        setAppointments(appointmentData);
 
-    const nextAppointmentData = await findLimitedAgendamentos(3);
-    setNextAppointments(nextAppointmentData);
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0]; 
+        const todayAppointmentsData = appointmentData.filter(appt => appt.data === todayStr).sort((a, b) => a.horario.localeCompare(b.horario));
+        setTodayAppointments(todayAppointmentsData);
 
-    const pacienteData = await findAllPacientesAction();
-    setPatients(pacienteData);
+        const nextAppointmentData = await findLimitedAgendamentos(3);
+        setNextAppointments(nextAppointmentData);
 
-    const boletosResponse = await fetch('/api/pegar-boletos', { method: 'GET', headers: {'Content-Type': 'application/json',} });
-    if (!boletosResponse.ok) throw new Error('Erro ao buscar boletos.');
-    const boletosData: Boleto[] = (await boletosResponse.json()).data;
-    const boletosFormatados = boletosData.filter(b => b.billingType === 'BOLETO').map(b => ({ dueDate: b.dueDate } as Boleto));
-    setBoletos(boletosFormatados);
-  }
+        const pacienteData = await findAllPacientesAction();
+        setPatients(pacienteData);
+
+        const boletosResponse = await fetch('/api/pegar-boletos', { method: 'GET', headers: {'Content-Type': 'application/json',} });
+        if (!boletosResponse.ok) throw new Error('Erro ao buscar boletos.');
+        const boletosData: Boleto[] = (await boletosResponse.json()).data;
+        const boletosFormatados = boletosData.filter(b => b.billingType === 'BOLETO').map(b => ({ dueDate: b.dueDate } as Boleto));
+        setBoletos(boletosFormatados);
+
+        const metaValor = await getMensagem("meta_valortotal");
+        const metaPac = await getMensagem("meta_pacientes");
+        const metaCons = await getMensagem("meta_consultas");
+        setMetaValorTotal(Number(metaValor.valor) || 0);
+        setMetaPacientes(Number(metaPac.valor) || 0);
+        setMetaConsultas(Number(metaCons.valor) || 0);
+    }
 
   useEffect(() => { fetchData(); }, []);
 
@@ -95,6 +108,35 @@ const Dashboard = () =>
     { name: 'Cancelados',  value: appointments.filter(p => p.status === 'cancelado').length,  color: '#ef4444' },
   ];
 
+    const agora = new Date();
+    const mesAtual = agora.getMonth();
+    const anoAtual = agora.getFullYear();
+
+    const receitaTotal = appointments.filter(a => 
+    {
+        if (a.status !== 'realizado') return false;
+        const dataAgendamento = new Date(a.data);
+        return ( dataAgendamento.getMonth() === mesAtual && dataAgendamento.getFullYear() === anoAtual );
+    }).reduce((sum, a) => sum + Number(a.valor), 0);
+
+    const pacientesAtivos = patients.filter(p => 
+    {
+        if (p.status !== 'ativo') return false;
+        const dataCadastro = new Date(p.createdAt);
+        return ( dataCadastro.getMonth() === mesAtual && dataCadastro.getFullYear() === anoAtual );
+    }).length;
+
+    const consultasRealizadas = appointments.filter(a => 
+    {
+        if (a.status !== 'realizado') return false;
+        const dataAgendamento = new Date(a.data);
+        return dataAgendamento.getMonth() === mesAtual && dataAgendamento.getFullYear() === anoAtual;
+    }).length;
+
+    const progressoReceita = metaValorTotal ? Math.min((receitaTotal / metaValorTotal) * 100, 100) : 0;
+    const progressoPacientes = metaPacientes ? Math.min((pacientesAtivos / metaPacientes) * 100, 100) : 0;
+    const progressoConsultas = metaConsultas ? Math.min((consultasRealizadas / metaConsultas) * 100, 100) : 0;
+
   return (
     <div className="space-y-6">
       {/* Cards de métricas principais */}
@@ -123,7 +165,7 @@ const Dashboard = () =>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pacientes Ativos</CardTitle>
+            <CardTitle className="text-sm font-medium">Pacientes Novos</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -134,6 +176,35 @@ const Dashboard = () =>
 
       {/* Gráficos e alertas */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="col-span-2">
+            <CardHeader>
+                <CardTitle>Metas da Clínica</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+            <div>
+                <p className="font-medium">Receita Total</p>
+                <div className="w-full bg-gray-200 rounded-full h-3 mt-1">
+                <div className="bg-green-500 h-3 rounded-full transition-all" style={{ width: `${progressoReceita}%` }}></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1"> R$ {receitaTotal.toFixed(2)} de R$ {metaValorTotal.toFixed(2)} ({progressoReceita.toFixed(1)}%)</p>
+            </div>
+            <div>
+                <p className="font-medium">Pacientes Novos</p>
+                <div className="w-full bg-gray-200 rounded-full h-3 mt-1">
+                <div className="bg-blue-500 h-3 rounded-full transition-all" style={{ width: `${progressoPacientes}%` }}></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1"> {pacientesAtivos} de {metaPacientes} ({progressoPacientes.toFixed(1)}%) </p>
+            </div>
+            <div>
+                <p className="font-medium">Consultas</p>
+                <div className="w-full bg-gray-200 rounded-full h-3 mt-1">
+                <div className="bg-blue-500 h-3 rounded-full transition-all" style={{ width: `${progressoConsultas}%` }}></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1"> {consultasRealizadas} de {metaConsultas} ({progressoConsultas.toFixed(1)}%) </p>
+            </div>
+            </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Receita da Semana</CardTitle>

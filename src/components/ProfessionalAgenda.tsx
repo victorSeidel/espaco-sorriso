@@ -32,13 +32,15 @@ const ProfessionalAgenda = ({ userRole }: ProfessionalAgendaProps) =>
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddingAppointment, setIsAddingAppointment] = useState(false);
 
-  const [selectedProfessional, setSelectedProfessional] = useState<string>('all');
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [serviceDescription, setServiceDescription] = useState("");
-  const [valor, setValor] = useState("");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
+    const [selectedProfessional, setSelectedProfessional] = useState<string>('all');
+    const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [serviceDescription, setServiceDescription] = useState("");
+    const [valor, setValor] = useState("");
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
+    const [parcelas, setParcelas] = useState(1);
+    const [taxa, setTaxa] = useState(0);
 
   const loadAppointments = async () => 
   {
@@ -127,6 +129,8 @@ const ProfessionalAgenda = ({ userRole }: ProfessionalAgendaProps) =>
         valor: agendamento.valor,
         tipo: 'entrada',
         metodoPagamento: agendamento.metodoPagamento,
+        parcelas: agendamento.parcelas || 1,
+        taxa: agendamento.taxa || "0"
       };
 
       const createdTransaction = await createTransacaoAction(transactionData);
@@ -211,31 +215,43 @@ const ProfessionalAgenda = ({ userRole }: ProfessionalAgendaProps) =>
       return;
     }
 
+    let valorFinal = Number(valor.replace(/[^\d.-]/g, '').replace(',', '.'));
+
+    if (selectedPaymentMethod === 'Cartão de Crédito' && taxa > 0) 
+    {
+        const taxaDecimal = taxa / 100;
+        valorFinal = valorFinal / (1 + taxaDecimal);
+    }
+
     const body = 
     {
-      profissionalId: Number(selectedProfessional),
-      pacienteId: Number(selectedPatientId),
-      data: selectedDate,
-      horario: selectedTime,
-      servico: serviceDescription,
-      valor: Number(valor.replace(/[^\d.-]/g, '').replace(',', '.')).toFixed(2),
-      metodoPagamento: selectedPaymentMethod,
-      status: 'pendente'
+        profissionalId: Number(selectedProfessional),
+        pacienteId: Number(selectedPatientId),
+        data: selectedDate,
+        horario: selectedTime,
+        servico: serviceDescription,
+        valor: valorFinal.toFixed(2),
+        metodoPagamento: selectedPaymentMethod,
+        parcelas: selectedPaymentMethod === 'Cartão de Crédito' ? parcelas : 1,
+        taxa: selectedPaymentMethod === 'Cartão de Crédito' ? taxa.toString() : "0",
+        status: 'pendente'
     };
 
     try 
     {
-      await criarAgendamento(body);
+        await criarAgendamento(body);
 
-      alert('Agendamento realizado com sucesso!');
+        alert('Agendamento realizado com sucesso!');
 
-      setSearchTerm("");
-      setSelectedPatientId(null);
-      setSelectedTime(null);
-      setServiceDescription("");
-      setValor("");
-      setSelectedPaymentMethod(null);
-      setIsAddingAppointment(false);
+        setSearchTerm("");
+        setSelectedPatientId(null);
+        setSelectedTime(null);
+        setServiceDescription("");
+        setValor("");
+        setSelectedPaymentMethod(null);
+        setParcelas(1);
+        setTaxa(0);
+        setIsAddingAppointment(false);
 
       fetchData();
     } 
@@ -375,25 +391,59 @@ const ProfessionalAgenda = ({ userRole }: ProfessionalAgendaProps) =>
                       <label className="text-sm font-medium mb-2 block">Serviço</label>
                       <Input id="service" type="text" placeholder="Tratamento de Canal" value={serviceDescription} onChange={(e) => setServiceDescription(e.target.value)} />
                     </div>
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Valor</label>
-                      <Input id="valor" type="number" placeholder="R$ 1.500,00" value={valor} onChange={(e) => setValor(e.target.value)} />
+                    <div className="flex gap-4">
+                        <div className="flex-1">
+                            <label className="text-sm font-medium mb-2 block">Valor</label>
+                            <Input id="valor" type="number" placeholder="1.500,00" value={valor} onChange={(e) => setValor(e.target.value)} />
+                            </div>
+                        <div className="flex-1">
+                            <label className="text-sm font-medium mb-2 block">Método de Pagamento</label>
+                            <Select value={selectedPaymentMethod ?? ''} onValueChange={(value) => { setSelectedPaymentMethod(value); 
+                                if (value !== 'Cartão de Crédito') { setParcelas(1); setTaxa(0); } }}>
+                                <SelectTrigger>
+                                <SelectValue placeholder="Selecione um método" />
+                                </SelectTrigger>
+                                <SelectContent id="metodoPagamento" className="bg-white z-50">
+                                <SelectItem value={'PIX'}>PIX</SelectItem>
+                                <SelectItem value={'Boleto'}>Boleto</SelectItem>
+                                <SelectItem value={'Cartão de Crédito'}>Cartão de Crédito</SelectItem>
+                                <SelectItem value={'Cartão de Débito'}>Cartão de Débito</SelectItem>
+                                <SelectItem value={'Dinheiro'}>Dinheiro</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Método de Pagamento</label>
-                      <Select value={selectedPaymentMethod ?? ''} onValueChange={setSelectedPaymentMethod}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione um método" />
-                        </SelectTrigger>
-                        <SelectContent id="metodoPagamento" className="bg-white z-50">
-                          <SelectItem value={'PIX'}>PIX</SelectItem>
-                          <SelectItem value={'Boleto'}>Boleto</SelectItem>
-                          <SelectItem value={'Cartão de Crédito'}>Cartão de Crédito</SelectItem>
-                          <SelectItem value={'Cartão de Débito'}>Cartão de Débito</SelectItem>
-                          <SelectItem value={'Dinheiro'}>Dinheiro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {selectedPaymentMethod === 'Cartão de Crédito' && (
+                        <div className="flex gap-4">
+                            <div className="flex-1">
+                                <label className="text-sm font-medium mb-2 block">Número de Parcelas</label>
+                                <Select
+                                value={parcelas.toString()}
+                                onValueChange={(value) => setParcelas(parseInt(value))}
+                                >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione as parcelas" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white">
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map((num) => (
+                                    <SelectItem key={num} value={num.toString()}>
+                                        {num}x
+                                    </SelectItem>
+                                    ))}
+                                </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex-1">
+                                <label className="text-sm font-medium mb-2 block">Taxa da Máquina (%)</label>
+                                <Input 
+                                type="number" 
+                                placeholder="0,00" 
+                                value={taxa}
+                                onChange={(e) => setTaxa(parseFloat(e.target.value) || 0)}
+                                />
+                            </div>
+                        </div>
+                    )}
                     <div className="flex gap-2">
                       <Button onClick={() => setIsAddingAppointment(false)} variant="outline" className="flex-1">
                         Cancelar
